@@ -1,0 +1,17 @@
+{
+  "name": "gemini-watermark-remover",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node build.js",
+    "build": "NODE_ENV=production node build.js",
+    "serve": "npx serve dist"
+  },
+  "dependencies": {
+    "jszip": "^3.10.1"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0"
+  },
+  "packageManager": "pnpm@10.11.0"
+}
