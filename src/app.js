@@ -256,8 +256,8 @@ function loadImage(file) {
 
 function isSupportedImage(file) {
     const mime = (file.type || '').toLowerCase();
-    if (/^image\/(jpeg|jpg|png|webp)$/.test(mime)) return true;
-    return /\.(jpe?g|png|webp)$/i.test(file.name || '');
+    if (/^image\/(jpeg|jpg|png|webp|heic|heif|avif)$/.test(mime)) return true;
+    return /\.(jpe?g|png|webp|heic|heif|avif)$/i.test(file.name || '');
 }
 
 function updateStatus(id, text, isHtml = false) {

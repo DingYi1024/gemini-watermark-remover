@@ -35,7 +35,7 @@
   "status.processing": "处理中...",
   "status.success": "处理完成",
   "status.failed": "处理失败",
-  "status.invalidFile": "未识别到可处理图片，请选择 JPG / PNG / WebP（≤20MB）",
+  "status.invalidFile": "未识别到可处理图片，请选择常见图片格式（JPG/PNG/WebP/HEIC/AVIF，≤20MB）",
   "info.size": "尺寸",
   "info.watermark": "检测到的水印",
   "info.position": "位置",
