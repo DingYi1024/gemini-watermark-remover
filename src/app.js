@@ -62,7 +62,6 @@ function setupLanguageSwitch() {
  * setup event listeners
  */
 function setupEventListeners() {
-    uploadArea.addEventListener('click', () => fileInput.click());
     fileInput.addEventListener('change', handleFileSelect);
 
     uploadArea.addEventListener('dragover', (e) => {
