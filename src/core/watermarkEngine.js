@@ -131,12 +131,9 @@ export class WatermarkEngine {
         // Get image data
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
 
-        // Detect watermark configuration
-        const config = detectWatermarkConfig(canvas.width, canvas.height);
-        const position = calculateWatermarkPosition(canvas.width, canvas.height, config);
-
-        // Get alpha map for watermark size
-        const alphaMap = await this.getAlphaMap(config.logoSize);
+        // Detect watermark configuration and position (content-aware fallback for mobile exports)
+        const detection = await this.detectBestConfigAndPosition(imageData, canvas.width, canvas.height);
+        const { config, position, alphaMap } = detection;
 
         // Remove watermark from image data
         removeWatermark(imageData, alphaMap, position);
@@ -145,6 +142,107 @@ export class WatermarkEngine {
         ctx.putImageData(imageData, 0, 0);
 
         return canvas;
+    }
+
+    async detectBestConfigAndPosition(imageData, imageWidth, imageHeight) {
+        const baseConfig = detectWatermarkConfig(imageWidth, imageHeight);
+        const basePosition = calculateWatermarkPosition(imageWidth, imageHeight, baseConfig);
+        const baseAlphaMap = await this.getAlphaMap(baseConfig.logoSize);
+        let best = {
+            config: baseConfig,
+            position: basePosition,
+            alphaMap: baseAlphaMap,
+            score: this.scoreCandidate(imageData, baseAlphaMap, basePosition)
+        };
+
+        const marginCandidates = [24, 32, 40, 48, 56, 64, 72, 80, 96, 112, 128];
+        const sizeCandidates = [48, 96].filter(size => size <= imageWidth && size <= imageHeight);
+
+        for (const logoSize of sizeCandidates) {
+            const alphaMap = await this.getAlphaMap(logoSize);
+            for (const marginRight of marginCandidates) {
+                for (const marginBottom of marginCandidates) {
+                    const x = imageWidth - marginRight - logoSize;
+                    const y = imageHeight - marginBottom - logoSize;
+                    if (x < 0 || y < 0) continue;
+
+                    const candidateConfig = { logoSize, marginRight, marginBottom };
+                    const candidatePosition = { x, y, width: logoSize, height: logoSize };
+                    const score = this.scoreCandidate(imageData, alphaMap, candidatePosition);
+
+                    if (score > best.score) {
+                        best = {
+                            config: candidateConfig,
+                            position: candidatePosition,
+                            alphaMap,
+                            score
+                        };
+                    }
+                }
+            }
+        }
+
+        return best;
+    }
+
+    scoreCandidate(imageData, alphaMap, position) {
+        const { x, y, width, height } = position;
+        const imgWidth = imageData.width;
+        const data = imageData.data;
+        const n = width * height;
+
+        let sumL = 0;
+        let sumL2 = 0;
+        let sumA = 0;
+        let sumA2 = 0;
+        let sumLA = 0;
+        let clipCount = 0;
+        let clipTotal = 0;
+
+        for (let row = 0; row < height; row++) {
+            for (let col = 0; col < width; col++) {
+                const localIndex = row * width + col;
+                const alpha = Math.min(alphaMap[localIndex], 0.95);
+                const pixelIndex = ((y + row) * imgWidth + (x + col)) * 4;
+
+                const r = data[pixelIndex];
+                const g = data[pixelIndex + 1];
+                const b = data[pixelIndex + 2];
+
+                const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
+
+                sumL += luminance;
+                sumL2 += luminance * luminance;
+                sumA += alpha;
+                sumA2 += alpha * alpha;
+                sumLA += luminance * alpha;
+
+                if (alpha > 0.02) {
+                    const denominator = 1.0 - alpha;
+                    if (denominator > 0.0001) {
+                        const restoredR = (r - alpha * 255) / denominator;
+                        const restoredG = (g - alpha * 255) / denominator;
+                        const restoredB = (b - alpha * 255) / denominator;
+
+                        if (restoredR < -8 || restoredR > 263) clipCount++;
+                        if (restoredG < -8 || restoredG > 263) clipCount++;
+                        if (restoredB < -8 || restoredB > 263) clipCount++;
+                        clipTotal += 3;
+                    }
+                }
+            }
+        }
+
+        const invN = n > 0 ? 1 / n : 0;
+        const meanL = sumL * invN;
+        const meanA = sumA * invN;
+        const varianceL = Math.max(0, sumL2 * invN - meanL * meanL);
+        const varianceA = Math.max(0, sumA2 * invN - meanA * meanA);
+        const covariance = sumLA * invN - meanL * meanA;
+        const correlation = covariance / (Math.sqrt(varianceL * varianceA) + 1e-6);
+        const clipRate = clipTotal > 0 ? clipCount / clipTotal : 1;
+
+        return correlation - 0.2 * clipRate;
     }
 
     /**
