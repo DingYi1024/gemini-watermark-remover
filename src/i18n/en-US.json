@@ -35,6 +35,7 @@
   "status.processing": "Processing...",
   "status.success": "Completed",
   "status.failed": "Failed",
+  "status.invalidFile": "No supported image found. Use JPG / PNG / WebP (<=20MB)",
   "info.size": "Size",
   "info.watermark": "Detected Watermark",
   "info.position": "Position",

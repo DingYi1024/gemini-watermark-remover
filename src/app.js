@@ -90,6 +90,7 @@ function reset() {
     imageQueue = [];
     processedCount = 0;
     fileInput.value = '';
+    setStatus('');
 }
 
 function handleFileSelect(e) {
@@ -98,12 +99,17 @@ function handleFileSelect(e) {
 
 function handleFiles(files) {
     const validFiles = files.filter(file => {
-        if (!file.type.match('image/(jpeg|png|webp)')) return false;
+        if (!isSupportedImage(file)) return false;
         if (file.size > 20 * 1024 * 1024) return false;
         return true;
     });
 
-    if (validFiles.length === 0) return;
+    if (validFiles.length === 0) {
+        setStatus(i18n.t('status.invalidFile'));
+        return;
+    }
+
+    setStatus('');
 
     imageQueue = validFiles.map((file, index) => ({
         id: Date.now() + index,
@@ -249,6 +255,12 @@ function loadImage(file) {
     });
 }
 
+function isSupportedImage(file) {
+    const mime = (file.type || '').toLowerCase();
+    if (/^image\/(jpeg|jpg|png|webp)$/.test(mime)) return true;
+    return /\.(jpe?g|png|webp)$/i.test(file.name || '');
+}
+
 function updateStatus(id, text, isHtml = false) {
     const el = document.getElementById(`status-${id}`);
     if (el) el.innerHTML = isHtml ? text : text.replace(/\n/g, '<br>');
@@ -265,10 +277,7 @@ function updateDynamicTexts() {
 }
 
 function downloadImage(item) {
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(item.processedBlob);
-    a.download = `unwatermarked_${item.name.replace(/\.[^.]+$/, '')}.png`;
-    a.click();
+    triggerDownload(item.processedBlob, `unwatermarked_${item.name.replace(/\.[^.]+$/, '')}.png`);
 }
 
 async function downloadAll() {
@@ -282,10 +291,31 @@ async function downloadAll() {
     });
 
     const blob = await zip.generateAsync({ type: 'blob' });
+    triggerDownload(blob, `unwatermarked_${Date.now()}.zip`);
+}
+
+function triggerDownload(blob, fileName) {
+    const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `unwatermarked_${Date.now()}.zip`;
+    a.href = url;
+    a.download = fileName;
+    a.rel = 'noopener';
+    document.body.appendChild(a);
     a.click();
+    document.body.removeChild(a);
+
+    // iOS Safari may ignore download attribute; open in a new tab as fallback
+    if (!('download' in HTMLAnchorElement.prototype)) {
+        window.open(url, '_blank');
+    }
+
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function setStatus(message) {
+    if (statusMessage) {
+        statusMessage.textContent = message;
+    }
 }
 
 function showLoading(text = null) {
